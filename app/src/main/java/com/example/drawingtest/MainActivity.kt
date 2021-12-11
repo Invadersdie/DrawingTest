@@ -3,11 +3,13 @@ package com.example.drawingtest
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
+import android.view.MotionEvent.FLAG_WINDOW_IS_OBSCURED
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
@@ -64,51 +66,11 @@ class MainActivity : ComponentActivity() {
 //                            translationX = 0f,
 //                            translationY = 0f
 //                        )
-
-//                        .dragGestureFilter(object: DragObserver {
-//                            override fun onDrag(dragDistance: Offset): Offset {
-//                                Log.d("Track", "onActionMove ${dragDistance.x} | ${dragDistance.y}")
-//                                return super.onDrag(dragDistance)
-//                            }
-//                            override fun onStart(downPosition: Offset) {
-//                                Log.d("Track", "onActionDown ${downPosition.x} | ${downPosition.y}")
-//                                super.onStart(downPosition)
-//                            }
-//                            override fun onStop(velocity: Offset) {
-//                                Log.d("Track", "onStop ${velocity.x} | ${velocity.y}")
-//                                super.onStop(velocity)
-//                            }
-//                        }, { true })
-//                        .tapGestureFilter {
-//                            Log.d("NGVL", "onActionUp ${it.x} | ${it.y}")
-//                        }
-
-                        .pointerInteropFilter(canvasDisallowInterceptTouchEvent) {
-                            Log.d("TAG", "CANVAS_POINTER")
-                            when (it.action) {
-                                MotionEvent.ACTION_DOWN -> {
-                                    action.value =
-                                        action.value.apply {
-                                            val coordinates = it.getCoordinates()
-                                            putAll(get3x3Square(coordinates))
-                                        }
-
-                                }
-                                MotionEvent.ACTION_MOVE -> {
-                                    action.value =
-                                        action.value.apply {
-                                            val coordinates = it.getCoordinates()
-                                            putAll(get3x3Square(coordinates))
-                                        }
-                                }
-                                else -> null
-                            }
-                            true
-                        }
+                        .drawWithPointerInput(action)
+//                        .drawWithPointerInteropFilter(action)
                     ) {
 
                         action.value.forEach {
-//                            Log.d("TAG", "DRAW")
                             drawRect(
                                 color = Color.Blue,
                                 topLeft = Offset(it.value.x, it.value.y),
@@ -122,23 +84,93 @@ class MainActivity : ComponentActivity() {
                             .background(Color.Green)
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .height(400.dp)
-                            .pointerInteropFilter(RequestDisallowInterceptTouchEvent()) {
+                            .height(300.dp)
+                            .pointerInteropFilter {
                                 Log.d("TAG", "BOX_POINTER")
-                                canvasDisallowInterceptTouchEvent.invoke(true)
-                                true
+//                                canvasDisallowInterceptTouchEvent.invoke(true)
+                                false
                             }
-                    ) {
+                    ) { }
+                    Box(
+                        Modifier
+                            .background(Color.Transparent)
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(bottom = 300.dp)
+                            .height(100.dp)
+                            .pointerInteropFilter {
+                                Log.d("TAG", "TRANSPARENT_BOX_POINTER")
+                                false
+                            }
 
-                    }
-
+                    ) {}
                 }
             }
         }
     }
 }
 
+
+fun Modifier.drawWithPointerInput(action: MutableState<MutableMap<String, Point>>) = this
+    .pointerInput(Unit) {
+        Log.d("TAG", "detect1")
+        detectDragGestures(
+            onDrag = { change, dragAmount ->
+                action.value =
+                    action.value.apply {
+                        val coordinates = change.position.getCoordinates()
+                        putAll(get3x3Square(coordinates))
+                    }
+            }
+        )
+    }
+    .pointerInput(Unit) {
+        Log.d("TAG", "detect2")
+        detectTapGestures(
+            onTap = {
+                action.value =
+                    action.value.apply {
+                        val coordinates = it.getCoordinates()
+                        putAll(get3x3Square(coordinates))
+                    }
+            }
+        )
+    }
+
+
+@ExperimentalComposeUiApi
+fun Modifier.drawWithPointerInteropFilter(action: MutableState<MutableMap<String, Point>>) =
+    this.pointerInteropFilter {
+        if (it.flags and FLAG_WINDOW_IS_OBSCURED != 0) {
+            Log.d("TAG", "CANVAS_POINTER_OBSCURED")
+            return@pointerInteropFilter true
+        }
+        when (it.action) {
+            MotionEvent.ACTION_DOWN -> {
+                action.value =
+                    action.value.apply {
+                        val coordinates = it.getCoordinates()
+                        putAll(get3x3Square(coordinates))
+                    }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                action.value =
+                    action.value.apply {
+                        val coordinates = it.getCoordinates()
+                        putAll(get3x3Square(coordinates))
+                    }
+            }
+            else -> null
+        }
+        true
+    }
+
+
 fun MotionEvent.getCoordinates(): Pair<Float, Float> {
+    return Pair(floor(x / 10) * 10 + 1, floor(y / 10) * 10 + 1)
+}
+
+fun Offset.getCoordinates(): Pair<Float, Float> {
     return Pair(floor(x / 10) * 10 + 1, floor(y / 10) * 10 + 1)
 }
 
